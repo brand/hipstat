@@ -45,7 +45,7 @@ from optparse import OptionParser
 
 def heatmap():
     buckets = np.zeros((7,24))
-    for msg in data["messages"]:
+    for msg in data:
         localtime = ToLocaltime(msg["date"])
         buckets[localtime.weekday()][localtime.hour] += 1
 
@@ -76,7 +76,7 @@ def heatmap():
 
 def engagement():
     buckets = {}
-    for msg in data["messages"]:
+    for msg in data:
         localtime = ToLocaltime(msg["date"])
         strtime   = localtime.strftime("%Y%m%d")
         user = msg["from"]["name"]
@@ -134,7 +134,7 @@ def speakers():
     buckets = {}
     total = co.defaultdict(int)
     users = co.defaultdict(int)
-    for msg in data["messages"]:
+    for msg in data:
         localtime = ToLocaltime(msg["date"])
         strtime   = localtime.strftime("%Y%m")
         user = msg["from"]["name"]
@@ -170,10 +170,9 @@ def speakers():
     ax = fig.add_subplot(111)
 
     # Setup a color palette; these come from http://colorbrewer2.org
-
-    colors = ['#003C30', '#543005', '#01665E', '#8C510A', '#35978F',
-              '#BF812D', '#80CDC1', '#DFC27D', '#C7EAE5', '#DFC27D',
-              '#C7EAE5', '#F6E8C3', '#F5F5F5']
+    colors = ['#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3',
+              '#fdb462', '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd',
+              '#ccebc5', '#ffed6f']
     ax.set_color_cycle(colors)
 
     # Constrain the y-axis; otherwise matplotlib will autoscale too big.
@@ -212,7 +211,7 @@ def speakers():
 
     # Set labels
 
-    plt.title("Accelerator team HipChat contribution")
+    plt.title("Team HipChat contribution")
     plt.ylabel("Percentage of total messages")
     plt.xlabel("Month")
 
@@ -248,7 +247,7 @@ def speakers():
 def wordfreq():
     words = {}
     ignore = {}
-    for msg in data["messages"]:
+    for msg in data:
         for word in msg["message"].split():
             word = re.sub("&quot;", "\"", word)
             word = word.strip("?!:,.\"()*'-").lower()
@@ -271,9 +270,9 @@ def wordfreq():
         if words[key] < 100 or key in ignore:
             continue
         if options.wordle:
-            print "%s " % (key) * words[key]
+            print("%s " % (key) * words[key])
         else:
-            print "%s %d" % (key, words[key])
+            print("%s %d" % (key, words[key]))
     return False
 
 def ToLocaltime(raw):
@@ -305,17 +304,30 @@ parser.add_option("-w", "--wordle",
                   help="output word freq data in wordle.com format",
                   default=False, 
                   action="store_true")
-parser.add_option("-u", "--user",
-                  dest="user",
-                  help="limit analysis to a specific user",
+parser.add_option("-u", "--users",
+                  dest="users",
+                  help="limit analysis to a specific users (comma separated)",
                   default="",
                   metavar="USER")
 (options, args) = parser.parse_args()
 
-data = json.load(sys.stdin)
-if options.user != "":
-    data["messages"] = [msg for msg in data["messages"] 
-                        if msg["from"]["name"] == options.user]
+if(not len(args)):
+    sys.stderr.write("Error: Must provide json data files to process.\n")
+    sys.exit(1)
+ 
+data = []
+for m_file in args:
+    try:
+       messages = json.loads(open(m_file).read())
+    except:
+       sys.stderr.write("Warning: Couldn't process %s.\n" % m_file)
+       continue
+    data.extend(filter(len,messages))
+
+if options.users != "":
+    options.users = options.users.split(',')
+    matcher = lambda msg: filter(lambda u: u in msg["from"]["name"], options.users)
+    data = [msg for msg in data if matcher(msg)]
 
 if globals()[options.report]():
     if options.filename != "":
